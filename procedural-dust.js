@@ -1,9 +1,9 @@
 import { createDustWeather } from './atmosphere-weather.js';
 
-const vertexSource = `attribute vec2 position; varying vec2 uv; void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
+const vertexSource = `attribute vec2 position; void main(){gl_Position=vec4(position,0.,1.);}`;
 const fragmentSource = `
 precision highp float;
-varying vec2 uv;
+uniform vec2 resolution;
 uniform float time;
 uniform float aspect;
 uniform vec2 seed;
@@ -24,6 +24,7 @@ float fbm(vec2 p){float result=0.,amplitude=.5;for(int i=0;i<5;i++){result+=ampl
 float morphField(vec2 p,float salt){float result=0.,amplitude=.5;for(int i=0;i<3;i++){result+=amplitude*evolvingNoise(p,.018+float(i)*.004,salt+float(i)*1.37);p=mat2(.8,-.6,.6,.8)*p*2.04+vec2(5.3,2.1);amplitude*=.5;}return result;}
 float fibers(vec2 p){float result=0.,amplitude=.45,weight=1.;for(int i=0;i<6;i++){float ridge=1.-abs(noise(p)*2.-1.);ridge=pow(ridge,4.);result+=ridge*amplitude*weight;weight=mix(.55,1.,ridge);p=mat2(.94,-.34,.34,.94)*p*2.13+vec2(3.7,8.1);amplitude*=.52;}return result;}
 void main(){
+  vec2 uv=gl_FragCoord.xy/resolution;
   // Shear the field along a diagonal, then break it into irregular filaments.
   // Separate drift speeds avoid a single scrolling texture or liquid contours.
   vec2 p=vec2(uv.x*aspect*7.2-uv.y*4.1,uv.y*8.6)+seed;
@@ -39,7 +40,8 @@ void main(){
   density+=volume*fogDensity;
   density*=1.-smoothstep(.38,.7,shadows)*mix(.72,.48,fogDensity);
   float shape=mix(smoothstep(.34,.78,uv.x)*(1.-smoothstep(.1,.98,1.-uv.y)),1.,fullScreen);
-  float band=mix(exp(-pow((uv.y-(uv.x*.62-.02))/.29,2.)),.72+.28*fbm(p*.23),fullScreen);
+  float bandDistance=(uv.y-(uv.x*.62-.02))/.29;
+  float band=mix(exp(-bandDistance*bandDistance),.72+.28*fbm(p*.23),fullScreen);
   float breathing=.94+.1*sin(time*.22+cloud*5.);
   float alpha=.9*(1.-exp(-density*shape*(.3+.7*band)*9.*breathing));
   vec3 color=mix(vec3(.26,.38,.5),vec3(.6,.76,.9),smoothstep(.04,.18,density));
@@ -48,7 +50,7 @@ void main(){
 
 export function createProceduralDust(app, { fullScreen = false } = {}) {
   let canvas=document.createElement('canvas');canvas.className='procedural-dust';canvas.setAttribute('aria-hidden','true');app.prepend(canvas);
-  let gl,program,buffer,timeUniform,aspectUniform,seedUniform,fogUniform,disposed=false,active=false,lastElapsed=0;
+  let gl,program,buffer,timeUniform,aspectUniform,seedUniform,fogUniform,resolutionUniform,disposed=false,active=false,lastElapsed=0;
   const seed=[Math.random()*40+2,Math.random()*40+2];
   const weather=createDustWeather();
   let fallbackContext,fallbackTextures=[],fallbackEpoch=-1;
@@ -76,16 +78,17 @@ export function createProceduralDust(app, { fullScreen = false } = {}) {
     const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource);
     program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);gl.deleteShader(vertex);gl.deleteShader(fragment);
     if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error('Dust shader unavailable');
-    gl.useProgram(program);buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+    gl.useProgram(program);buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
     const position=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
     timeUniform=gl.getUniformLocation(program,'time');aspectUniform=gl.getUniformLocation(program,'aspect');seedUniform=gl.getUniformLocation(program,'seed');fogUniform=gl.getUniformLocation(program,'fogDensity');gl.uniform2f(seedUniform,...seed);canvas.dataset.renderer='webgl';canvas.dataset.seed=seed.map(value=>value.toFixed(3)).join(',');
     gl.uniform1f(gl.getUniformLocation(program,'fullScreen'),fullScreen?1:0);
+    resolutionUniform=gl.getUniformLocation(program,'resolution');
     canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();gl=null;fallback();});
   } catch {if(gl){if(program)gl.deleteProgram(program);if(buffer)gl.deleteBuffer(buffer);}gl=null;fallback();}
   function resize(){if(disposed)return;const ratio=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round((app.clientWidth||1)*ratio);canvas.height=Math.round((fullScreen?(app.clientHeight||1):Math.min(780,app.clientHeight||780))*ratio);canvas.dataset.coverage=fullScreen?'full':'right';canvas.dataset.resolution=`${canvas.width}x${canvas.height}`;draw(lastElapsed);}
   function draw(elapsed){if(disposed||!active)return;lastElapsed=elapsed;const time=elapsed/1000;
     const atmosphere=weather.sample(elapsed);
-    if(gl){gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.SCISSOR_TEST);const start=fullScreen?0:Math.floor(canvas.width*.34);gl.scissor(start,0,canvas.width-start,canvas.height);gl.uniform1f(timeUniform,time);gl.uniform1f(aspectUniform,canvas.width/canvas.height);gl.uniform1f(fogUniform,atmosphere.density);gl.drawArrays(gl.TRIANGLES,0,6);}
+    if(gl){gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.SCISSOR_TEST);const start=fullScreen?0:Math.floor(canvas.width*.34);gl.scissor(start,0,canvas.width-start,canvas.height);gl.uniform2f(resolutionUniform,canvas.width,canvas.height);gl.uniform1f(timeUniform,time);gl.uniform1f(aspectUniform,canvas.width/canvas.height);gl.uniform1f(fogUniform,atmosphere.density);gl.drawArrays(gl.TRIANGLES,0,3);}
     else if(fallbackContext){
       const epoch=Math.floor(time*.025),phase=time*.025-epoch,blend=phase*phase*(3-2*phase);
       if(epoch!==fallbackEpoch){fallbackTextures=[fallbackEpoch===epoch-1&&fallbackTextures[1]?fallbackTextures[1]:fallbackTexture(epoch),fallbackTexture(epoch+1)];fallbackEpoch=epoch;}

@@ -5,8 +5,13 @@ const canvas = document.querySelector('.synqloud-stars');
 const context = canvas.getContext('2d');
 const dust = createProceduralDust(host, { fullScreen: true });
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const stars = Array.from({ length: 96 }, () => ({ x: Math.random(), y: Math.random(), radius: .4 + Math.random() ** 3 * 1.1, brightness: .15 + Math.random() * .5, phase: Math.random() * Math.PI * 2, period: 4000 + Math.random() * 13000 }));
 let elapsed = 0;
+let renewed = 0;
+function makeStar(randomAge = false) {
+  const lifetime = 40000 + Math.random() * 50000;
+  return { x: Math.random(), y: Math.random(), radius: .4 + Math.random() ** 2 * 1.1, brightness: .28 + Math.random() * .5, phase: Math.random() * Math.PI * 2, period: 12000 + Math.random() * 16000, lifetime, born: elapsed - (randomAge ? Math.random() * lifetime : 0) };
+}
+const stars = Array.from({ length: 52 }, () => makeStar(true));
 let previous = 0;
 let frame = 0;
 let width = 1;
@@ -16,12 +21,27 @@ function drawStars() {
   if (!context) return;
   context.clearRect(0, 0, width, height);
   for (const star of stars) {
-    const opacity = star.brightness * (.65 + .35 * Math.sin(elapsed / star.period + star.phase));
+    if (elapsed - star.born >= star.lifetime) { Object.assign(star, makeStar()); renewed++; }
+    const life = Math.sin(Math.PI * Math.max(0, Math.min(1, (elapsed - star.born) / star.lifetime))) ** .75;
+    const pulse = .5 + .5 * Math.sin(elapsed * Math.PI * 2 / star.period + star.phase);
+    const opacity = star.brightness * life * (.4 + .6 * pulse);
+    if (star.radius > 1.15) {
+      const x = star.x * width, y = star.y * height;
+      const halo = context.createRadialGradient(x, y, 0, x, y, star.radius * 4);
+      halo.addColorStop(0, `rgba(177,213,250,${opacity * .28})`);
+      halo.addColorStop(1, 'rgba(177,213,250,0)');
+      context.fillStyle = halo;
+      context.beginPath();
+      context.arc(x, y, star.radius * 4, 0, Math.PI * 2);
+      context.fill();
+    }
     context.fillStyle = `rgba(211,230,251,${opacity})`;
     context.beginPath();
     context.arc(star.x * width, star.y * height, star.radius, 0, Math.PI * 2);
     context.fill();
   }
+  canvas.dataset.time = (elapsed / 1000).toFixed(3);
+  canvas.dataset.renewed = String(renewed);
 }
 
 function step(time) {
