@@ -1,5 +1,4 @@
 import { createDustWeather } from './atmosphere-weather.js';
-
 const vertexSource = `attribute vec2 position; void main(){gl_Position=vec4(position,0.,1.);}`;
 const fragmentSource = `
 precision highp float;
@@ -9,7 +8,7 @@ uniform float aspect;
 uniform vec2 seed;
 uniform float fogDensity;
 uniform float fullScreen;
-float hash(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+float hash(vec2 p){vec2 q=mod(floor(p),289.);float h=mod((q.x*34.+1.)*q.x,289.);float cell=h+q.y;return mod((cell*34.+1.)*cell,289.)/289.;}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
 // Interpolate between seeded random fields, not random values per frame.
 // The end field of one interval is the start of the next: no visual reset.
@@ -47,62 +46,215 @@ void main(){
   vec3 color=mix(vec3(.26,.38,.5),vec3(.6,.76,.9),smoothstep(.04,.18,density));
   gl_FragColor=vec4(color*alpha,alpha);
 }`;
-
+function makeCanvas() {
+    const canvas = document.createElement('canvas');
+    canvas.className = 'procedural-dust';
+    canvas.setAttribute('aria-hidden', 'true');
+    return canvas;
+}
 export function createProceduralDust(app, { fullScreen = false } = {}) {
-  let canvas=document.createElement('canvas');canvas.className='procedural-dust';canvas.setAttribute('aria-hidden','true');app.prepend(canvas);
-  let gl,program,buffer,timeUniform,aspectUniform,seedUniform,fogUniform,resolutionUniform,disposed=false,active=false,lastElapsed=0;
-  const seed=[Math.random()*40+2,Math.random()*40+2];
-  const weather=createDustWeather();
-  let fallbackContext,fallbackTextures=[],fallbackEpoch=-1;
-  function compile(type,source){const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)){gl.deleteShader(shader);throw new Error('Dust shader unavailable');}return shader;}
-  function fallback() {
-    const previous=canvas;canvas=document.createElement('canvas');canvas.className='procedural-dust';canvas.setAttribute('aria-hidden','true');previous.replaceWith(canvas);
-    fallbackContext=canvas.getContext('2d');canvas.dataset.renderer='canvas';canvas.dataset.seed=seed.map(value=>value.toFixed(3)).join(',');resize();
-  }
-  function fallbackTexture(epoch) {
-    const texture=document.createElement('canvas');texture.width=400;texture.height=280;
-    const c=texture.getContext('2d'),pixels=c.createImageData(400,280);
-    const random=(salt)=>{const value=Math.sin(epoch*12.9898+seed[0]*78.233+salt)*43758.5453;return value-Math.floor(value);};
-    const angles=[random(1)*6.28,random(2)*6.28,random(3)*6.28];
-    for(let y=0;y<280;y++)for(let x=0;x<400;x++){
-      const n=(Math.sin(x*.041+y*.073+angles[0])+Math.sin(x*.13-y*.033+angles[1])+Math.sin(x*.009+y*.017+angles[2]))* .166+.5;
-      const band=fullScreen ? .8 : Math.exp(-(((y/280-(x/400*.55+.1))/.25)**2));
-      const fade=fullScreen?1:Math.max(0,(x/400-.22)/.78);
-      const i=(y*400+x)*4;pixels.data[i]=90;pixels.data[i+1]=140;pixels.data[i+2]=184;pixels.data[i+3]=Math.max(0,n**4*band*fade*160);
+    let canvas = makeCanvas();
+    app.prepend(canvas);
+    let gl = null;
+    let program = null;
+    let buffer = null;
+    let timeUniform = null;
+    let aspectUniform = null;
+    let seedUniform = null;
+    let fogUniform = null;
+    let resolutionUniform = null;
+    let disposed = false;
+    let active = false;
+    let lastElapsed = 0;
+    const seed = [Math.random() * 40 + 2, Math.random() * 40 + 2];
+    const weather = createDustWeather();
+    let fallbackContext = null;
+    let fallbackTextures = [];
+    let fallbackEpoch = -1;
+    function compile(context, type, source) {
+        const shader = context.createShader(type);
+        if (!shader)
+            throw new Error('Dust shader unavailable');
+        context.shaderSource(shader, source);
+        context.compileShader(shader);
+        if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
+            context.deleteShader(shader);
+            throw new Error('Dust shader unavailable');
+        }
+        return shader;
     }
-    c.putImageData(pixels,0,0);return texture;
-  }
-  try {
-    gl=canvas.getContext('webgl',{alpha:true,antialias:false,powerPreference:'low-power'});
-    if(!gl)throw new Error('WebGL unavailable');
-    const vertex=compile(gl.VERTEX_SHADER,vertexSource),fragment=compile(gl.FRAGMENT_SHADER,fragmentSource);
-    program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,fragment);gl.linkProgram(program);gl.deleteShader(vertex);gl.deleteShader(fragment);
-    if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error('Dust shader unavailable');
-    gl.useProgram(program);buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
-    const position=gl.getAttribLocation(program,'position');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
-    timeUniform=gl.getUniformLocation(program,'time');aspectUniform=gl.getUniformLocation(program,'aspect');seedUniform=gl.getUniformLocation(program,'seed');fogUniform=gl.getUniformLocation(program,'fogDensity');gl.uniform2f(seedUniform,...seed);canvas.dataset.renderer='webgl';canvas.dataset.seed=seed.map(value=>value.toFixed(3)).join(',');
-    gl.uniform1f(gl.getUniformLocation(program,'fullScreen'),fullScreen?1:0);
-    resolutionUniform=gl.getUniformLocation(program,'resolution');
-    canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();gl=null;fallback();});
-  } catch {if(gl){if(program)gl.deleteProgram(program);if(buffer)gl.deleteBuffer(buffer);}gl=null;fallback();}
-  function resize(){if(disposed)return;const ratio=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round((app.clientWidth||1)*ratio);canvas.height=Math.round((fullScreen?(app.clientHeight||1):Math.min(780,app.clientHeight||780))*ratio);canvas.dataset.coverage=fullScreen?'full':'right';canvas.dataset.resolution=`${canvas.width}x${canvas.height}`;draw(lastElapsed);}
-  function draw(elapsed){if(disposed||!active)return;lastElapsed=elapsed;const time=elapsed/1000;
-    const atmosphere=weather.sample(elapsed);
-    if(gl){gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.SCISSOR_TEST);const start=fullScreen?0:Math.floor(canvas.width*.34);gl.scissor(start,0,canvas.width-start,canvas.height);gl.uniform2f(resolutionUniform,canvas.width,canvas.height);gl.uniform1f(timeUniform,time);gl.uniform1f(aspectUniform,canvas.width/canvas.height);gl.uniform1f(fogUniform,atmosphere.density);gl.drawArrays(gl.TRIANGLES,0,3);}
-    else if(fallbackContext){
-      const epoch=Math.floor(time*.025),phase=time*.025-epoch,blend=phase*phase*(3-2*phase);
-      if(epoch!==fallbackEpoch){fallbackTextures=[fallbackEpoch===epoch-1&&fallbackTextures[1]?fallbackTextures[1]:fallbackTexture(epoch),fallbackTexture(epoch+1)];fallbackEpoch=epoch;}
-      fallbackContext.clearRect(0,0,canvas.width,canvas.height);fallbackContext.globalCompositeOperation='lighter';
-      const fog=fallbackContext.createRadialGradient(canvas.width*(fullScreen ? .5 : .82),canvas.height*(fullScreen ? .5 : .32),0,canvas.width*(fullScreen ? .5 : .82),canvas.height*(fullScreen ? .5 : .32),canvas.width*(fullScreen ? .9 : .5));
-      fog.addColorStop(0,`rgba(128,171,206,${atmosphere.density*.38})`);fog.addColorStop(1,'rgba(128,171,206,0)');
-      fallbackContext.globalAlpha=1;fallbackContext.fillStyle=fog;fallbackContext.fillRect(0,0,canvas.width,canvas.height);
-      const glow=.94+.06*Math.sin(time*.22),x=-24+Math.sin(time*.07)*24,y=-12+Math.cos(time*.055)*12;
-      fallbackTextures.forEach((texture,index)=>{fallbackContext.globalAlpha=glow*(index?blend:1-blend);fallbackContext.drawImage(texture,x,y,canvas.width+48,canvas.height+36);});
-      fallbackContext.globalCompositeOperation='source-over';
+    function fallback() {
+        const previous = canvas;
+        canvas = makeCanvas();
+        previous.replaceWith(canvas);
+        fallbackContext = canvas.getContext('2d');
+        canvas.dataset.renderer = 'canvas';
+        canvas.dataset.seed = seed.map(value => value.toFixed(3)).join(',');
+        resize();
     }
-    canvas.dataset.time=time.toFixed(3);canvas.dataset.morph=(time*.025).toFixed(3);
-    canvas.dataset.weather=atmosphere.phase;canvas.dataset.density=atmosphere.density.toFixed(4);
-  }
-  const observer=new ResizeObserver(resize);observer.observe(app);resize();
-  return { setActive(value){active=value;canvas.hidden=!value;if(value)resize();},draw,dispose(){disposed=true;observer.disconnect();if(gl){gl.deleteProgram(program);gl.deleteBuffer(buffer);}canvas.remove();} };
+    function fallbackTexture(epoch) {
+        const texture = document.createElement('canvas');
+        texture.width = 400;
+        texture.height = 280;
+        const context = texture.getContext('2d');
+        if (!context)
+            return texture;
+        const pixels = context.createImageData(400, 280);
+        const random = (salt) => {
+            const value = Math.sin(epoch * 12.9898 + seed[0] * 78.233 + salt) * 43758.5453;
+            return value - Math.floor(value);
+        };
+        const angles = [random(1) * 6.28, random(2) * 6.28, random(3) * 6.28];
+        for (let y = 0; y < 280; y++) {
+            for (let x = 0; x < 400; x++) {
+                const n = (Math.sin(x * .041 + y * .073 + angles[0]) +
+                    Math.sin(x * .13 - y * .033 + angles[1]) +
+                    Math.sin(x * .009 + y * .017 + angles[2])) * .166 + .5;
+                const band = fullScreen ? .8 : Math.exp(-(((y / 280 - (x / 400 * .55 + .1)) / .25) ** 2));
+                const fade = fullScreen ? 1 : Math.max(0, (x / 400 - .22) / .78);
+                const i = (y * 400 + x) * 4;
+                pixels.data[i] = 90;
+                pixels.data[i + 1] = 140;
+                pixels.data[i + 2] = 184;
+                pixels.data[i + 3] = Math.max(0, n ** 4 * band * fade * 160);
+            }
+        }
+        context.putImageData(pixels, 0, 0);
+        return texture;
+    }
+    try {
+        gl = canvas.getContext('webgl', { alpha: true, antialias: false, powerPreference: 'low-power' });
+        if (!gl)
+            throw new Error('WebGL unavailable');
+        const vertex = compile(gl, gl.VERTEX_SHADER, vertexSource);
+        const fragment = compile(gl, gl.FRAGMENT_SHADER, fragmentSource);
+        program = gl.createProgram();
+        if (!program)
+            throw new Error('Dust shader unavailable');
+        gl.attachShader(program, vertex);
+        gl.attachShader(program, fragment);
+        gl.linkProgram(program);
+        gl.deleteShader(vertex);
+        gl.deleteShader(fragment);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+            throw new Error('Dust shader unavailable');
+        gl.useProgram(program);
+        buffer = gl.createBuffer();
+        if (!buffer)
+            throw new Error('Dust geometry unavailable');
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        const position = gl.getAttribLocation(program, 'position');
+        gl.enableVertexAttribArray(position);
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+        timeUniform = gl.getUniformLocation(program, 'time');
+        aspectUniform = gl.getUniformLocation(program, 'aspect');
+        seedUniform = gl.getUniformLocation(program, 'seed');
+        fogUniform = gl.getUniformLocation(program, 'fogDensity');
+        gl.uniform2f(seedUniform, ...seed);
+        canvas.dataset.renderer = 'webgl';
+        canvas.dataset.seed = seed.map(value => value.toFixed(3)).join(',');
+        gl.uniform1f(gl.getUniformLocation(program, 'fullScreen'), fullScreen ? 1 : 0);
+        resolutionUniform = gl.getUniformLocation(program, 'resolution');
+        canvas.addEventListener('webglcontextlost', event => {
+            event.preventDefault();
+            gl = null;
+            fallback();
+        });
+    }
+    catch {
+        if (gl) {
+            if (program)
+                gl.deleteProgram(program);
+            if (buffer)
+                gl.deleteBuffer(buffer);
+        }
+        gl = null;
+        fallback();
+    }
+    function resize() {
+        if (disposed)
+            return;
+        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.round((app.clientWidth || 1) * ratio);
+        canvas.height = Math.round((fullScreen ? (app.clientHeight || 1) :
+            Math.min(780, app.clientHeight || 780)) * ratio);
+        canvas.dataset.coverage = fullScreen ? 'full' : 'right';
+        canvas.dataset.resolution = `${canvas.width}x${canvas.height}`;
+        draw(lastElapsed);
+    }
+    function draw(elapsed) {
+        if (disposed || !active)
+            return;
+        lastElapsed = elapsed;
+        const time = elapsed / 1000;
+        const atmosphere = weather.sample(elapsed);
+        if (gl) {
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.enable(gl.SCISSOR_TEST);
+            const start = fullScreen ? 0 : Math.floor(canvas.width * .34);
+            gl.scissor(start, 0, canvas.width - start, canvas.height);
+            gl.uniform2f(resolutionUniform, canvas.width, canvas.height);
+            gl.uniform1f(timeUniform, time);
+            gl.uniform1f(aspectUniform, canvas.width / canvas.height);
+            gl.uniform1f(fogUniform, atmosphere.density);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
+        else if (fallbackContext) {
+            const epoch = Math.floor(time * .025);
+            const phase = time * .025 - epoch;
+            const blend = phase * phase * (3 - 2 * phase);
+            if (epoch !== fallbackEpoch) {
+                fallbackTextures = [
+                    fallbackEpoch === epoch - 1 && fallbackTextures[1] ? fallbackTextures[1] : fallbackTexture(epoch),
+                    fallbackTexture(epoch + 1),
+                ];
+                fallbackEpoch = epoch;
+            }
+            fallbackContext.clearRect(0, 0, canvas.width, canvas.height);
+            fallbackContext.globalCompositeOperation = 'lighter';
+            const centerX = canvas.width * (fullScreen ? .5 : .82);
+            const centerY = canvas.height * (fullScreen ? .5 : .32);
+            const fog = fallbackContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, canvas.width * (fullScreen ? .9 : .5));
+            fog.addColorStop(0, `rgba(128,171,206,${atmosphere.density * .38})`);
+            fog.addColorStop(1, 'rgba(128,171,206,0)');
+            fallbackContext.globalAlpha = 1;
+            fallbackContext.fillStyle = fog;
+            fallbackContext.fillRect(0, 0, canvas.width, canvas.height);
+            const glow = .94 + .06 * Math.sin(time * .22);
+            const x = -24 + Math.sin(time * .07) * 24;
+            const y = -12 + Math.cos(time * .055) * 12;
+            const context = fallbackContext;
+            fallbackTextures.forEach((texture, index) => {
+                context.globalAlpha = glow * (index ? blend : 1 - blend);
+                context.drawImage(texture, x, y, canvas.width + 48, canvas.height + 36);
+            });
+            fallbackContext.globalCompositeOperation = 'source-over';
+        }
+        canvas.dataset.time = time.toFixed(3);
+        canvas.dataset.morph = (time * .025).toFixed(3);
+        canvas.dataset.weather = atmosphere.phase;
+        canvas.dataset.density = atmosphere.density.toFixed(4);
+    }
+    const observer = new ResizeObserver(resize);
+    observer.observe(app);
+    resize();
+    return {
+        setActive(value) {
+            active = value;
+            canvas.hidden = !value;
+            if (value)
+                resize();
+        },
+        draw,
+        dispose() {
+            disposed = true;
+            observer.disconnect();
+            if (gl) {
+                gl.deleteProgram(program);
+                gl.deleteBuffer(buffer);
+            }
+            canvas.remove();
+        },
+    };
 }

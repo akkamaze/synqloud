@@ -1,13 +1,30 @@
 import { createProceduralDust } from './procedural-dust.js';
 
-const host = document.querySelector('.synqloud');
-const canvas = document.querySelector('.synqloud-stars');
+interface Star {
+  x: number;
+  y: number;
+  radius: number;
+  brightness: number;
+  phase: number;
+  period: number;
+  lifetime: number;
+  born: number;
+}
+
+function requireElement<T extends Element>(selector: string): T {
+  const element = document.querySelector<T>(selector);
+  if (!element) throw new Error(`Synqloud scene is missing ${selector}`);
+  return element;
+}
+
+const host = requireElement<HTMLElement>('.synqloud');
+const canvas = requireElement<HTMLCanvasElement>('.synqloud-stars');
 const context = canvas.getContext('2d');
 const dust = createProceduralDust(host, { fullScreen: true });
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let elapsed = 0;
 let renewed = 0;
-function makeStar(randomAge = false) {
+function makeStar(randomAge = false): Star {
   const lifetime = 40000 + Math.random() * 50000;
   return { x: Math.random(), y: Math.random(), radius: .4 + Math.random() ** 2 * 1.1, brightness: .28 + Math.random() * .5, phase: Math.random() * Math.PI * 2, period: 12000 + Math.random() * 16000, lifetime, born: elapsed - (randomAge ? Math.random() * lifetime : 0) };
 }
@@ -44,7 +61,7 @@ function drawStars() {
   canvas.dataset.renewed = String(renewed);
 }
 
-function step(time) {
+function step(time: number) {
   frame = 0;
   if (reducedMotion.matches || document.hidden) return;
   if (!previous) previous = time;
