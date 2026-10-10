@@ -1,0 +1,13 @@
+{
+  "name": "synqloud-homepage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "tsc && node scripts/copy-static.mjs"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
