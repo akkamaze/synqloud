@@ -29,6 +29,10 @@ npm run build
 npm run preview
 ```
 
+`npm run check` runs `astro check` and Biome. `npm run format` applies
+Biome's formatting and safe lint fixes. `npm install` points Git at
+`.githooks/`, whose pre-commit hook checks staged files.
+
 `npm run build` writes the static site to `dist/`. Serve that directory as
 the web root.
 

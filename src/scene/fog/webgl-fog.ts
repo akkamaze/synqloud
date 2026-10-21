@@ -1,6 +1,6 @@
-import type { FogRenderer, FogSeed } from './fog-renderer.ts';
 import fragmentSource from './fog.frag.glsl?raw';
 import vertexSource from './fog.vert.glsl?raw';
+import type { FogRenderer, FogSeed } from './fog-renderer.ts';
 
 const FULL_SCREEN_TRIANGLE = new Float32Array([-1, -1, 3, -1, -1, 3]);
 

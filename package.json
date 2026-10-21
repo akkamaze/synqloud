@@ -10,10 +10,13 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check"
+    "check": "astro check && biome check .",
+    "format": "biome check --write .",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
+    "@biomejs/biome": "2.6.2",
     "astro": "7.4.2",
     "typescript": "6.0.3"
   }

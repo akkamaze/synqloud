@@ -9,7 +9,13 @@ const STAR_COUNT = 52;
 const HALO_MIN_RADIUS = 1.15;
 const MAX_PIXEL_RATIO = 2;
 
-function drawStar(context: CanvasRenderingContext2D, star: Star, opacity: number, width: number, height: number): void {
+function drawStar(
+  context: CanvasRenderingContext2D,
+  star: Star,
+  opacity: number,
+  width: number,
+  height: number,
+): void {
   const x = star.x * width;
   const y = star.y * height;
 

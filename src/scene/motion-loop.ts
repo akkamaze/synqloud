@@ -7,7 +7,10 @@ export interface MotionLoop {
 const FRAME_INTERVAL_MS = 40;
 
 // Calls onFrame with total running time, paused while hidden or under reduced motion.
-export function createMotionLoop(host: HTMLElement, onFrame: (elapsed: number) => void): MotionLoop {
+export function createMotionLoop(
+  host: HTMLElement,
+  onFrame: (elapsed: number) => void,
+): MotionLoop {
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
   let elapsed = 0;

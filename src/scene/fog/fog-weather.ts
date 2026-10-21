@@ -23,8 +23,7 @@ function phaseOf(transitioning: boolean, from: number, target: number, density: 
 
 // Alternates holds and transitions; dense fog is rare and short-lived.
 export function createFogWeather(random: RandomSource = Math.random): FogWeather {
-  const initialDensity =
-    random() < 0.1 ? between(random, 0.72, 0.98) : between(random, 0.08, 0.26);
+  const initialDensity = random() < 0.1 ? between(random, 0.72, 0.98) : between(random, 0.08, 0.26);
 
   let from = initialDensity;
   let target = initialDensity;
@@ -43,8 +42,7 @@ export function createFogWeather(random: RandomSource = Math.random): FogWeather
         target = gather ? between(random, 0.72, 0.98) : between(random, 0.06, 0.28);
         duration = between(random, 35000, 80000);
       } else {
-        duration =
-          target > DENSE ? between(random, 45000, 110000) : between(random, 80000, 200000);
+        duration = target > DENSE ? between(random, 45000, 110000) : between(random, 80000, 200000);
       }
     }
   }
