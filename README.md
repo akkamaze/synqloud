@@ -33,6 +33,13 @@ npm run preview
 Biome's formatting and safe lint fixes. `npm install` points Git at
 `.githooks/`, whose pre-commit hook checks staged files.
 
+```sh
+npm test
+```
+
+Unit tests cover the pure scene rules (star lifecycle, fog weather) and run
+with Node's built-in test runner.
+
 `npm run build` writes the static site to `dist/`. Serve that directory as
 the web root.
 
