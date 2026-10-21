@@ -20,7 +20,7 @@ function requireElement<T extends Element>(selector: string): T {
 const host = requireElement<HTMLElement>('.synqloud');
 const canvas = requireElement<HTMLCanvasElement>('.synqloud-stars');
 const context = canvas.getContext('2d');
-const dust = createProceduralDust(host, { fullScreen: true });
+const dust = createProceduralDust(host);
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let elapsed = 0;
 let renewed = 0;

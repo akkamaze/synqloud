@@ -8,7 +8,7 @@ function requireElement(selector) {
 const host = requireElement('.synqloud');
 const canvas = requireElement('.synqloud-stars');
 const context = canvas.getContext('2d');
-const dust = createProceduralDust(host, { fullScreen: true });
+const dust = createProceduralDust(host);
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let elapsed = 0;
 let renewed = 0;

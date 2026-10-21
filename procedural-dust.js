@@ -7,7 +7,6 @@ uniform float time;
 uniform float aspect;
 uniform vec2 seed;
 uniform float fogDensity;
-uniform float fullScreen;
 float hash(vec2 p){vec2 q=mod(floor(p),289.);float h=mod((q.x*34.+1.)*q.x,289.);float cell=h+q.y;return mod((cell*34.+1.)*cell,289.)/289.;}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
 // Interpolate between seeded random fields, not random values per frame.
@@ -38,11 +37,9 @@ void main(){
   float volume=smoothstep(.16,.68,cloud)*(.055+.1*fbm(field*.52-drift*.3));
   density+=volume*fogDensity;
   density*=1.-smoothstep(.38,.7,shadows)*mix(.72,.48,fogDensity);
-  float shape=mix(smoothstep(.34,.78,uv.x)*(1.-smoothstep(.1,.98,1.-uv.y)),1.,fullScreen);
-  float bandDistance=(uv.y-(uv.x*.62-.02))/.29;
-  float band=mix(exp(-bandDistance*bandDistance),.72+.28*fbm(p*.23),fullScreen);
+  float band=.72+.28*fbm(p*.23);
   float breathing=.94+.1*sin(time*.22+cloud*5.);
-  float alpha=.9*(1.-exp(-density*shape*(.3+.7*band)*9.*breathing));
+  float alpha=.9*(1.-exp(-density*(.3+.7*band)*9.*breathing));
   vec3 color=mix(vec3(.26,.38,.5),vec3(.6,.76,.9),smoothstep(.04,.18,density));
   gl_FragColor=vec4(color*alpha,alpha);
 }`;
@@ -52,7 +49,7 @@ function makeCanvas() {
     canvas.setAttribute('aria-hidden', 'true');
     return canvas;
 }
-export function createProceduralDust(app, { fullScreen = false } = {}) {
+export function createProceduralDust(app) {
     let canvas = makeCanvas();
     app.prepend(canvas);
     let gl = null;
@@ -110,13 +107,11 @@ export function createProceduralDust(app, { fullScreen = false } = {}) {
                 const n = (Math.sin(x * .041 + y * .073 + angles[0]) +
                     Math.sin(x * .13 - y * .033 + angles[1]) +
                     Math.sin(x * .009 + y * .017 + angles[2])) * .166 + .5;
-                const band = fullScreen ? .8 : Math.exp(-(((y / 280 - (x / 400 * .55 + .1)) / .25) ** 2));
-                const fade = fullScreen ? 1 : Math.max(0, (x / 400 - .22) / .78);
                 const i = (y * 400 + x) * 4;
                 pixels.data[i] = 90;
                 pixels.data[i + 1] = 140;
                 pixels.data[i + 2] = 184;
-                pixels.data[i + 3] = Math.max(0, n ** 4 * band * fade * 160);
+                pixels.data[i + 3] = Math.max(0, n ** 4 * .8 * 160);
             }
         }
         context.putImageData(pixels, 0, 0);
@@ -154,7 +149,6 @@ export function createProceduralDust(app, { fullScreen = false } = {}) {
         gl.uniform2f(seedUniform, ...seed);
         canvas.dataset.renderer = 'webgl';
         canvas.dataset.seed = seed.map(value => value.toFixed(3)).join(',');
-        gl.uniform1f(gl.getUniformLocation(program, 'fullScreen'), fullScreen ? 1 : 0);
         resolutionUniform = gl.getUniformLocation(program, 'resolution');
         canvas.addEventListener('webglcontextlost', event => {
             event.preventDefault();
@@ -177,9 +171,7 @@ export function createProceduralDust(app, { fullScreen = false } = {}) {
             return;
         const ratio = Math.min(window.devicePixelRatio || 1, 2);
         canvas.width = Math.round((app.clientWidth || 1) * ratio);
-        canvas.height = Math.round((fullScreen ? (app.clientHeight || 1) :
-            Math.min(780, app.clientHeight || 780)) * ratio);
-        canvas.dataset.coverage = fullScreen ? 'full' : 'right';
+        canvas.height = Math.round((app.clientHeight || 1) * ratio);
         canvas.dataset.resolution = `${canvas.width}x${canvas.height}`;
         draw(lastElapsed);
     }
@@ -191,9 +183,6 @@ export function createProceduralDust(app, { fullScreen = false } = {}) {
         const atmosphere = weather.sample(elapsed);
         if (gl) {
             gl.viewport(0, 0, canvas.width, canvas.height);
-            gl.enable(gl.SCISSOR_TEST);
-            const start = fullScreen ? 0 : Math.floor(canvas.width * .34);
-            gl.scissor(start, 0, canvas.width - start, canvas.height);
             gl.uniform2f(resolutionUniform, canvas.width, canvas.height);
             gl.uniform1f(timeUniform, time);
             gl.uniform1f(aspectUniform, canvas.width / canvas.height);
@@ -213,9 +202,9 @@ export function createProceduralDust(app, { fullScreen = false } = {}) {
             }
             fallbackContext.clearRect(0, 0, canvas.width, canvas.height);
             fallbackContext.globalCompositeOperation = 'lighter';
-            const centerX = canvas.width * (fullScreen ? .5 : .82);
-            const centerY = canvas.height * (fullScreen ? .5 : .32);
-            const fog = fallbackContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, canvas.width * (fullScreen ? .9 : .5));
+            const centerX = canvas.width * .5;
+            const centerY = canvas.height * .5;
+            const fog = fallbackContext.createRadialGradient(centerX, centerY, 0, centerX, centerY, canvas.width * .9);
             fog.addColorStop(0, `rgba(128,171,206,${atmosphere.density * .38})`);
             fog.addColorStop(1, 'rgba(128,171,206,0)');
             fallbackContext.globalAlpha = 1;

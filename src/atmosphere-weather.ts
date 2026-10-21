@@ -9,19 +9,6 @@ export interface DustWeather {
   sample(elapsed: number): DustAtmosphere;
 }
 
-export interface LightSample {
-  x: number;
-  y: number;
-  angle: number;
-  spread: number;
-  intensity: number;
-  size: number;
-}
-
-export interface LightField {
-  sample(elapsed: number): LightSample[];
-}
-
 const smooth = (progress: number): number => progress * progress * (3 - 2 * progress);
 const between = (random: RandomSource, minimum: number, maximum: number): number =>
   minimum + random() * (maximum - minimum);
@@ -54,39 +41,6 @@ export function createDustWeather(random: RandomSource = Math.random): DustWeath
         : transitioning && from > .6 ? 'dissipating'
         : density > .6 ? 'dense' : 'wispy';
       return { density, phase };
-    },
-  };
-}
-
-export function createLightField(random: RandomSource = Math.random): LightField {
-  const target = (): LightSample => ({
-    x: between(random, 58, 103),
-    y: between(random, -12, 24),
-    angle: between(random, 108, 218),
-    spread: between(random, 48, 104),
-    intensity: between(random, .4, .95),
-    size: between(random, 40, 78),
-  });
-  const tracks = Array.from({ length: 2 }, () => ({
-    from: target(), to: target(), start: 0, duration: between(random, 14000, 31000),
-  }));
-  return {
-    sample(elapsed) {
-      return tracks.map(track => {
-        while (elapsed >= track.start + track.duration) {
-          track.start += track.duration;
-          track.from = track.to;
-          track.to = target();
-          track.duration = between(random, 14000, 31000);
-        }
-        const progress = smooth(Math.max(0, Math.min(1, (elapsed - track.start) / track.duration)));
-        const interpolate = (key: keyof LightSample): number =>
-          track.from[key] + (track.to[key] - track.from[key]) * progress;
-        return {
-          x: interpolate('x'), y: interpolate('y'), angle: interpolate('angle'),
-          spread: interpolate('spread'), intensity: interpolate('intensity'), size: interpolate('size'),
-        };
-      });
     },
   };
 }
