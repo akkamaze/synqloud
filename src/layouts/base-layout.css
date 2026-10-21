@@ -1,0 +1,14 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  background: #080e17;
+  color: #edf3fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
