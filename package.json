@@ -3,11 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.23.4"
+  },
   "scripts": {
-    "check": "tsc --noEmit",
-    "build": "tsc && node scripts/copy-static.mjs"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
   },
   "devDependencies": {
-    "typescript": "7.0.2"
+    "@astrojs/check": "0.9.12",
+    "astro": "7.4.2",
+    "typescript": "6.0.3"
   }
 }

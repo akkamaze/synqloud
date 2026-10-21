@@ -1,4 +1,4 @@
-import { createProceduralDust } from './procedural-dust.js';
+import { createProceduralDust } from './fog/procedural-fog.ts';
 
 interface Star {
   x: number;

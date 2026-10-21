@@ -1,0 +1,13 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import '../scene/synqloud.css';
+---
+
+<BaseLayout title="Synqloud" description="Synqloud — a quiet space for connection.">
+  <main class="synqloud" aria-label="Synqloud home">
+    <canvas class="synqloud-stars" aria-hidden="true"></canvas>
+    <div class="wordmark"><h1>synqloud</h1></div>
+    <footer class="site-footer"><span>A space to connect.</span></footer>
+  </main>
+  <script src="../scene/scene.ts"></script>
+</BaseLayout>
