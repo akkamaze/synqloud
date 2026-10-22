@@ -9,12 +9,13 @@ interface Props {
 const { title, description } = Astro.props;
 
 // Dev mode injects inline styles and scripts, which this policy would block.
+// The CDN injects its analytics beacon (with SRI) and posts results to this origin.
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://static.cloudflareinsights.com/beacon.min.js/",
   "style-src 'self'",
   "img-src 'self'",
-  "connect-src 'none'",
+  "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
   "frame-src 'none'",
