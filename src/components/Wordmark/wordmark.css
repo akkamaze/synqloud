@@ -1,0 +1,27 @@
+.wordmark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 5%;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.wordmark h1 {
+  margin: 0;
+  font-size: clamp(76px, 15.8vw, 290px);
+  font-weight: 450;
+  line-height: 0.94;
+  letter-spacing: -0.078em;
+  padding-right: 0.078em;
+  color: #edf3fa;
+  text-shadow: 0 2px 35px #080e1790;
+}
+
+@media (max-width: 600px) {
+  .wordmark h1 {
+    font-size: 17vw;
+  }
+}

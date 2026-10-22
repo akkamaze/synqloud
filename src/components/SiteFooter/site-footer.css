@@ -1,0 +1,20 @@
+.site-footer {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: max(30px, env(safe-area-inset-bottom));
+  z-index: 1;
+  color: #acb9ca;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@media (max-width: 600px) {
+  .site-footer {
+    left: 7%;
+    right: 7%;
+    font-size: 11px;
+  }
+}

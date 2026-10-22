@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Format and lint staged files; enabled by `npm install` (see the prepare script).
+exec npx --no-install biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true
