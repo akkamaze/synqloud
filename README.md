@@ -43,5 +43,17 @@ with Node's built-in test runner.
 `npm run build` writes the static site to `dist/`. Serve that directory as
 the web root.
 
+## Container image
+
+```sh
+npm run build
+docker build -t synqloud-site .
+docker run --rm --read-only --tmpfs /tmp --cap-drop ALL -p 8080:8080 synqloud-site
+```
+
+The image copies `dist/` into unprivileged nginx (uid 101, port 8080). It
+holds only the built static files, so it can run with a read-only root
+filesystem and no capabilities.
+
 Motion respects the system's reduced-motion preference and pauses when the
 document is hidden. WebGL renders the fog, with a generated canvas fallback.
